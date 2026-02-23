@@ -2,30 +2,36 @@ import imaplib
 import email
 import re
 import random
-from telegram import ReplyKeyboardMarkup, KeyboardButton, Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-from telegram.error import BadRequest
+from telegram import (
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup
+)
+from telegram.ext import (
+    Application, 
+    CommandHandler, 
+    MessageHandler, 
+    CallbackQueryHandler, 
+    filters, 
+    ContextTypes
+)
 
 # ================= CONFIG =================
 BOT_TOKEN = "8517596492:AAEl0BHLz3CH44Ar3436BBb8g9cdw_ZOJoA"
-VIDEO_FILE_ID = "BAACAgUAAxkBAAICommcz32xjKaBJ1VOdh6qDs3Le-M6AAJ0GwACmLToVHyU1IVg8Gt3OgQ"
-CHANNEL_ID = "@TeamOFDark1"  # Aapka channel username
+CHANNEL_ID = "@TeamOFDark1"
 CHANNEL_LINK = "https://t.me/TeamOFDark1"
+VIDEO_FILE_ID = "BAACAgUAAxkBAAICommcz32xjKaBJ1VOdh6qDs3Le-M6AAJ0GwACmLToVHyU1IVg8Gt3OgQ"
 # ==========================================
 
-# -------- FORCE JOIN CHECK --------
 async def is_user_joined(context, user_id):
     try:
-        member = await context.bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
-        if member.status in ["member", "administrator", "creator"]:
-            return True
-        return False
-    except BadRequest:
-        return False
-    except Exception:
+        member = await context.bot.get_chat_member(CHANNEL_ID, user_id)
+        return member.status in ["member", "administrator", "creator"]
+    except:
         return False
 
-# -------- OTP FETCH FUNCTION --------
 def fetch_latest_otp(user_email, app_pass):
     try:
         mail = imaplib.IMAP4_SSL("imap.gmail.com")
@@ -34,8 +40,8 @@ def fetch_latest_otp(user_email, app_pass):
         status, messages = mail.search(None, "ALL")
         if status != "OK": return "❌ Mail search failed."
         mail_ids = messages[0].split()
-        latest_10 = mail_ids[-10:]
-        for mail_id in reversed(latest_10):
+        latest_15 = mail_ids[-15:]
+        for mail_id in reversed(latest_15):
             status, data = mail.fetch(mail_id, "(RFC822)")
             if status != "OK": continue
             msg = email.message_from_bytes(data[0][1])
@@ -55,7 +61,6 @@ def fetch_latest_otp(user_email, app_pass):
     except Exception as e:
         return f"❌ Error: {str(e)}"
 
-# -------- KEYBOARD --------
 def get_kb():
     return ReplyKeyboardMarkup([
         [KeyboardButton("📧 Add Gmail"), KeyboardButton("🔑 Set App Pass")],
@@ -63,29 +68,25 @@ def get_kb():
         [KeyboardButton("📺 Watch Video Guide")]
     ], resize_keyboard=True)
 
-# -------- START --------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if await is_user_joined(context, user_id):
         await update.message.reply_text("🤖 Bot Ready! Buttons ka use karein.", reply_markup=get_kb())
     else:
         keyboard = [[InlineKeyboardButton("Join Channel", url=CHANNEL_LINK)]]
-        markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text(
-            "❌ **Access Denied!**\n\nBot use karne ke liye aapko hamare channel ko join karna hoga.",
-            reply_markup=markup
-        )
+        await update.message.reply_text("❌ Pehle channel join karein.", reply_markup=InlineKeyboardMarkup(keyboard))
 
-# -------- MESSAGE HANDLER --------
+# --- ALIAS GENERATOR LOGIC ---
+def generate_alias_text(email):
+    name, domain = email.split("@")
+    alias = f"`{name}+{random.randint(10,999)}@{domain}`"
+    return f"✅ Click to Copy Alias:\n\n{alias}"
+
 async def handle_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.message.text: return
     user_id = update.effective_user.id
-    # Force join check on every message
     if not await is_user_joined(context, user_id):
-        keyboard = [[InlineKeyboardButton("Join Channel", url=CHANNEL_LINK)]]
-        await update.message.reply_text(
-            "🚨 Pehle channel join karein phir bot use karein!",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+        await update.message.reply_text("🚨 Pehle channel join karein!", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Join Channel", url=CHANNEL_LINK)]]))
         return
 
     text = update.message.text
@@ -101,9 +102,8 @@ async def handle_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif text == "🔀 Generate Alias":
         if ud.get("email"):
-            name, domain = ud["email"].split("@")
-            alias = f"`{name}+{random.randint(10,999)}@{domain}`"
-            await update.message.reply_text(f"✅ Click to Copy Alias:\n\n{alias}", parse_mode="Markdown")
+            markup = InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Get New Mail", callback_data="regen_alias")]])
+            await update.message.reply_text(generate_alias_text(ud["email"]), parse_mode="Markdown", reply_markup=markup)
         else:
             await update.message.reply_text("❌ Pehle Gmail add karein.")
 
@@ -128,12 +128,22 @@ async def handle_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ud["step"] = None
             await update.message.reply_text("✅ App Password saved.")
 
-# -------- MAIN --------
+# --- CALLBACK FOR INLINE BUTTON ---
+async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    ud = context.user_data
+    if query.data == "regen_alias":
+        if ud.get("email"):
+            markup = InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Get New Mail", callback_data="regen_alias")]])
+            await query.edit_message_text(generate_alias_text(ud["email"]), parse_mode="Markdown", reply_markup=markup)
+
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(callback_handler)) # Added callback handler
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_all))
-    app.run_polling()
+    app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
     main()
