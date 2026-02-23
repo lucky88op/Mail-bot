@@ -7,7 +7,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from telegram.error import BadRequest
 
 # ================= CONFIG =================
-BOT_TOKEN = "8517596492:AAFRG7XaV9QzJbClCT0DCLg8NtfQfhHggY0"
+BOT_TOKEN = "8517596492:AAEl0BHLz3CH44Ar3436BBb8g9cdw_ZOJoA"
 VIDEO_FILE_ID = "BAACAgUAAxkBAAICommcz32xjKaBJ1VOdh6qDs3Le-M6AAJ0GwACmLToVHyU1IVg8Gt3OgQ"
 CHANNEL_ID = "@TeamOFDark1"  # Aapka channel username
 CHANNEL_LINK = "https://t.me/TeamOFDark1"
